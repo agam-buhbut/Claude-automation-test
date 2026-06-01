@@ -1,0 +1,92 @@
+#!/usr/sbin/nft -f
+# Hardened packet filter for the AmneziaWG VPN server.
+# Default-DROP input + forward; silent to unauthenticated probes (an active
+# scanner sees the VPN port as indistinguishable from closed). NATs both client
+# families behind the server's single exit IP. Isolates clients from each other.
+#
+# Installed to /etc/nftables.conf and loaded at boot by nftables.service.
+
+flush ruleset
+
+define WAN  = "wlp1s0"
+define VPN  = "awg0"
+define VPN4 = 10.8.0.0/24
+define VPN6 = fd42:8::/64
+define LAN4 = 192.168.1.0/24
+define VPN_PORT = 443
+
+table inet filter {
+    chain input {
+        type filter hook input priority filter; policy drop;
+
+        ct state established,related accept
+        ct state invalid drop
+        iif lo accept
+
+        # ICMP — keep PMTUD + basic diagnostics, rate-limited.
+        ip protocol icmp icmp type { echo-request, echo-reply, \
+            destination-unreachable, time-exceeded, parameter-problem } \
+            limit rate 20/second accept
+        ip6 nexthdr icmpv6 icmpv6 type { nd-neighbor-solicit, \
+            nd-neighbor-advert, nd-router-solicit, nd-router-advert, \
+            echo-request, echo-reply, destination-unreachable, packet-too-big, \
+            time-exceeded, parameter-problem, mld-listener-query, \
+            mld-listener-report, mld-listener-done } limit rate 50/second accept
+
+        # Keep the host's own L3 autoconfig working on the WAN link.
+        iifname $WAN udp sport 67 udp dport 68 accept       # DHCPv4 client
+        iifname $WAN udp sport 547 udp dport 546 accept     # DHCPv6 client
+
+        # Management (SSH) only from the local LAN and from inside the tunnel.
+        ip saddr $LAN4 tcp dport 22 accept
+        ip saddr $VPN4 tcp dport 22 accept
+
+        # DNS only from inside the tunnel (unbound; defense-in-depth vs unbound ACL).
+        iifname $VPN udp dport 53 accept
+        iifname $VPN tcp dport 53 accept
+
+        # AmneziaWG: established data is accepted above (ct established). Only
+        # genuinely new/unreplied flows reach here — rate-limit per source IP so
+        # a flood/scan cannot exhaust resources. Over-limit packets fall through
+        # to the silent DROP policy.
+        udp dport $VPN_PORT ct state new \
+            meter awgflood4 { ip saddr limit rate 10/second } accept
+        udp dport $VPN_PORT ct state new \
+            meter awgflood6 { ip6 saddr limit rate 10/second } accept
+
+        # else: silent drop (policy)
+    }
+
+    chain forward {
+        type filter hook forward priority filter; policy drop;
+
+        ct state established,related accept
+        ct state invalid drop
+
+        # Clients reach the Internet through the WAN...
+        iifname $VPN oifname $WAN ip saddr $VPN4 accept
+        iifname $VPN oifname $WAN ip6 saddr $VPN6 accept
+
+        # ...but NOT each other (lateral isolation: a compromised client cannot
+        # pivot to the peer through the tunnel).
+        iifname $VPN oifname $VPN drop
+    }
+
+    chain output {
+        type filter hook output priority filter; policy accept;
+    }
+}
+
+# Source-NAT: both client families share the server's single exit address.
+table ip nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        ip saddr $VPN4 oifname $WAN masquerade
+    }
+}
+table ip6 nat {
+    chain postrouting {
+        type nat hook postrouting priority srcnat; policy accept;
+        ip6 saddr $VPN6 oifname $WAN masquerade
+    }
+}
