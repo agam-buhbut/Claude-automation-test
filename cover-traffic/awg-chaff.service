@@ -1,0 +1,26 @@
+[Unit]
+Description=AmneziaWG cover-traffic (chaff) daemon
+After=awg-quick@awg0.service network-online.target
+Wants=awg-quick@awg0.service
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/awg-chaff --iface awg0 --floor-kbps 16
+Restart=on-failure
+RestartSec=3
+
+# Least privilege: only the raw-socket capability is needed.
+User=root
+AmbientCapabilities=CAP_NET_RAW
+CapabilityBoundingSet=CAP_NET_RAW
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+ProtectKernelTunables=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_NETLINK AF_UNIX
+MemoryDenyWriteExecute=yes
+
+[Install]
+WantedBy=multi-user.target
