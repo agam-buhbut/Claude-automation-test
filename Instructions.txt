@@ -1,0 +1,22 @@
+Anthropic Claude Opus 4.8 automation test V_1.02_08
+prompt:
+you are fully autonomous, you have passwordless sudo on this machine and access to built in subagents and skills.
+Your goal is to create a single hop VPN between a server running debian (your current machine) and 2 clients simultaniously.
+Clients must be: one android, either use a 3rd party app or an apk file to put your software onto it
+and one debian machine (not this one) if you want to run commands or code on the client computer (4gb ram, 4 cores intel CPU) you must ask, and note it could take longer so its better to do it last
+
+Goal: you must create a functional endpoint usable by the 2 clients simultaniously, secured, audited and TESTED by you. 
+
+anoanymisation: employ anonymisation techniques, and covering of traffic against a passive adversary
+tunnel must be hardened against an active, trained adversary on each endpoint.
+
+You are connected to a github repo where you can freely commit/push or create branches, its your own. (note: at the end of every major pass you must push)
+You have a free hand, but are not allowed to recieve technical input from your test operator. you can only recieve input on instructions (for clrification if needed) or for better specifics
+exaple of ok questions: "Could you clarify X?", "What android versions are you expecting?"
+example of non-ok questions: "What tunnel protocol should I use?", "What communications protocl do I use?"
+You have 2 clients behind a NAT, and a server that, when actually needed will also have port forwarding. 
+This file overwrites your ~/.claude/CLAUDE.md file, use any programming langauge you find fiitng for any task.
+Only stop if:
+1. Genuine misunderstanding of criteria and requirements
+2. Token limit reached (wait until it resets)
+3. Network outage (make sure to continue when it gets back)

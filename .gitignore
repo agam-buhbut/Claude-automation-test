@@ -1,0 +1,37 @@
+# ============================================================
+# SECRETS — never commit private/preshared keys or live configs
+# ============================================================
+secrets/
+*.key
+*.privkey
+*_private.key
+*.psk
+# Generated peer configs contain private keys
+clients/**/*.conf
+server/awg0.conf
+*.conf.live
+
+# QR images may embed full client configs (with private keys)
+*.png
+
+# Build artifacts
+amneziawg-go/
+amneziawg-tools/
+*.o
+*.a
+bin/
+
+# Runtime / logs
+*.log
+*.pcap
+test/_run/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Editor
+*.swp
+*~
+/build/
