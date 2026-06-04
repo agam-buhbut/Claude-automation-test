@@ -26,6 +26,14 @@ full-tunnel egress, tunnel DNS, and obfuscation. Only Internet-side traversal is
 out of scope on this uplink, and that is an environment limitation, not a VPN
 defect.
 
+> **Caution — same-LAN throughput ceiling (see AUDIT.md F6).** Because the client
+> is on the *same Wi-Fi* as the server, full-tunnel makes the server a Wi-Fi relay
+> and every browsed byte crosses its single radio ~4×. Under heavy real load this
+> saturates the shared radio/uplink and can starve the server's own control plane.
+> The LAN endpoint is fine for **functional** validation at moderate load; for
+> sustained heavy throughput the server should be on a **wired** uplink or the
+> client should be **off-LAN**.
+
 ## Going remote (off-LAN clients)
 
 To serve clients that are **not** on the home LAN, the server needs a genuine

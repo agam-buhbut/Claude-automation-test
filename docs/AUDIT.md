@@ -6,7 +6,7 @@ harnesses, both re-runnable:
 | Harness | What it does | Result |
 |---------|--------------|--------|
 | `test/sim-clients.sh all` | Runs **both** client configs as real AmneziaWG peers in separate network namespaces, connecting to the live server **simultaneously**, exercising the true data path (tunnel → server NAT → real Internet). | **14/14 pass** |
-| `test/audit.sh` | Read-only static/hardening audit of the live server (crypto, firewall, sysctl, key hygiene, DNS exposure, services). | **22/22 pass** |
+| `test/audit.sh` | Read-only static/hardening audit of the live server (crypto, firewall, sysctl, key hygiene, DNS exposure, services). | **21/21 pass** |
 
 ## Functional results (`sim-clients.sh`)
 
@@ -89,17 +89,39 @@ core, so it adds no cryptographic weakness while removing the on-wire fingerprin
   asserted here via PSK presence + code lineage, not a live packet-injection test.
   A live replay-injection test is a recommended addition.
 
-- **F5 — Firewall found flushed mid-uptime; self-healing watchdog added (fixed).**
-  During Android-client validation the live `nft` ruleset was discovered **empty**
-  despite `nftables.service` being `enabled`: the service had been enabled ~1h45m
-  *after* boot (so it never ran this boot), and the in-session `nft -f` load was
-  later flushed with nothing to restore it — leaving the endpoint silently
-  unhardened. **Fix:** `awg-fw-ensure.sh` + `awg-fw-watchdog.timer` (`OnBootSec=45s`,
-  then every 2 min) reload `/etc/nftables.conf` whenever the `inet filter` table is
-  absent, logging via `logger -t awg-fw-ensure`. Verified by deleting the table and
-  observing automatic restoration; `audit.sh` now fails if the watchdog is not
-  enabled+active. This caps the unhardened window at one timer interval instead of
-  "until noticed".
+- **F5 — Firewall persistence; an auto-reapply watchdog was tried and reverted.**
+  During validation the live `nft` ruleset was once found empty despite
+  `nftables.service` being `enabled` (the service was enabled ~1h45m *after* boot,
+  so it had not run this boot). The correct fix is simply ensuring the boot path
+  loads it — verified by `systemctl restart nftables` (re-loads the 55-line ruleset
+  and logs cleanly). A "self-healing" watchdog that *auto-reapplied* the ruleset
+  every 2 min was briefly added and then **reverted**: during the F6 incident below
+  it fought the operator's manual `nft flush` (silently restoring the firewall
+  within 2 min), removing exactly the manual override needed in an emergency.
+  Lesson: a hardening endpoint must never strip the operator's ability to take it
+  down by hand. Do **not** auto-reapply firewall state.
+
+- **F6 — Shared-medium contention under real full-tunnel load (environmental).**
+  With the real Android client on the **same Wi-Fi** as the server, full-tunnel
+  makes the server a Wi-Fi *relay*: every byte the client browses crosses the
+  server's single radio ~4× (RX from client over the tunnel → TX to the router →
+  RX the reply → TX back to the client over the tunnel), on a half-duplex medium
+  behind CGNAT, shared with the server's own uplink. Under a real browsing load
+  this saturated the radio/uplink and starved **both** the client's traffic and the
+  server's own control plane simultaneously. Confirmed *not* a packet-filter drop
+  (OUTPUT policy `accept`; `ct established` accepted first in input+forward; zero
+  nft drops/martians; `nf_conntrack` 8/262144; 8 cores at load ~0.04; chaff
+  correctly suppresses under load). Recovery was immediate once the client
+  disconnected (load removed). **Mitigations / recommendations:** (a) put the
+  server on a **wired** uplink, or place the client **off-LAN**, so the relay no
+  longer contends for the client's own Wi-Fi airtime; (b) prefer split-tunnel, or
+  rate-limit forwarded traffic to reserve uplink headroom, where heavy full-tunnel
+  throughput is not required; (c) traffic-control QoS to prioritise host-origin
+  packets would help the server's TX ordering but cannot govern 802.11 airtime from
+  one station and was **not** applied blind on this single-queue Wi-Fi interface.
+  The tunnel itself is correct and leak-free under moderate load; this ceiling is a
+  property of the test environment (Wi-Fi-relay server, CGNAT, same-LAN client),
+  not of the VPN design.
 
 ## Re-running
 
