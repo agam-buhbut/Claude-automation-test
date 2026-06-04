@@ -11,6 +11,16 @@ install -m644 "$REPO/server/firewall.nft" /etc/nftables.conf
 systemctl enable nftables >/dev/null 2>&1 || true
 nft -f /etc/nftables.conf
 
+# 1b. Firewall liveness watchdog: reload the ruleset if it is ever flushed or
+#     never loaded this boot (closes the "endpoint silently unhardened" window).
+install -m755 "$REPO/server/awg-fw-ensure.sh" /usr/local/sbin/awg-fw-ensure.sh
+install -m644 "$REPO/server/awg-fw-watchdog.service" \
+    /etc/systemd/system/awg-fw-watchdog.service
+install -m644 "$REPO/server/awg-fw-watchdog.timer" \
+    /etc/systemd/system/awg-fw-watchdog.timer
+systemctl daemon-reload
+systemctl enable --now awg-fw-watchdog.timer >/dev/null 2>&1 || true
+
 # 2. Kernel hardening.
 install -m644 "$REPO/server/sysctl-hardening.conf" \
     /etc/sysctl.d/99-awg-hardening.conf

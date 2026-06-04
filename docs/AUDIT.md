@@ -6,7 +6,7 @@ harnesses, both re-runnable:
 | Harness | What it does | Result |
 |---------|--------------|--------|
 | `test/sim-clients.sh all` | Runs **both** client configs as real AmneziaWG peers in separate network namespaces, connecting to the live server **simultaneously**, exercising the true data path (tunnel → server NAT → real Internet). | **14/14 pass** |
-| `test/audit.sh` | Read-only static/hardening audit of the live server (crypto, firewall, sysctl, key hygiene, DNS exposure, services). | **21/21 pass** |
+| `test/audit.sh` | Read-only static/hardening audit of the live server (crypto, firewall, sysctl, key hygiene, DNS exposure, services). | **22/22 pass** |
 
 ## Functional results (`sim-clients.sh`)
 
@@ -88,6 +88,18 @@ core, so it adds no cryptographic weakness while removing the on-wire fingerprin
   data/handshake anti-replay properties are inherited from upstream WireGuard and
   asserted here via PSK presence + code lineage, not a live packet-injection test.
   A live replay-injection test is a recommended addition.
+
+- **F5 — Firewall found flushed mid-uptime; self-healing watchdog added (fixed).**
+  During Android-client validation the live `nft` ruleset was discovered **empty**
+  despite `nftables.service` being `enabled`: the service had been enabled ~1h45m
+  *after* boot (so it never ran this boot), and the in-session `nft -f` load was
+  later flushed with nothing to restore it — leaving the endpoint silently
+  unhardened. **Fix:** `awg-fw-ensure.sh` + `awg-fw-watchdog.timer` (`OnBootSec=45s`,
+  then every 2 min) reload `/etc/nftables.conf` whenever the `inet filter` table is
+  absent, logging via `logger -t awg-fw-ensure`. Verified by deleting the table and
+  observing automatic restoration; `audit.sh` now fails if the watchdog is not
+  enabled+active. This caps the unhardened window at one timer interval instead of
+  "until noticed".
 
 ## Re-running
 

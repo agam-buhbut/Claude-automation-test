@@ -1,0 +1,13 @@
+[Unit]
+Description=Periodically verify the AmneziaWG firewall is loaded
+Documentation=file:///usr/local/sbin/awg-fw-ensure.sh
+
+[Timer]
+# Run shortly after boot (covers an enable-after-boot race where
+# nftables.service did not run this boot) and every 2 minutes thereafter.
+OnBootSec=45s
+OnUnitActiveSec=2min
+AccuracySec=15s
+
+[Install]
+WantedBy=timers.target

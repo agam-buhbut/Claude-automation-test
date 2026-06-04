@@ -66,6 +66,13 @@ en=$(systemctl is-enabled nftables 2>/dev/null)
 if [[ "$en" == enabled ]] && nft list table inet filter >/dev/null 2>&1; then
     ok "nftables enabled at boot & ruleset loaded"
 else bad "nftables not enabled ($en) or ruleset absent"; fi
+# Durability: the watchdog reloads the firewall if it is ever flushed, so the
+# endpoint cannot silently stay unhardened (the failure this guard was added for).
+wen=$(systemctl is-enabled awg-fw-watchdog.timer 2>/dev/null)
+wac=$(systemctl is-active awg-fw-watchdog.timer 2>/dev/null)
+if [[ "$wen" == enabled && "$wac" == active ]]; then
+    ok "firewall watchdog timer enabled & active"
+else bad "firewall watchdog timer not running (enabled=$wen active=$wac)"; fi
 
 echo "----------------------------------------"
 echo "AUDIT: $PASS passed, $FAIL failed"
